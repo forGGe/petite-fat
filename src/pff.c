@@ -982,8 +982,6 @@ FRESULT pf_lseek (
 {
     CLUST clst;
     DWORD bcs, sect, ifptr;
-    FATFS *fs = FatFs;
-
 
     if (!fs) return FR_NOT_ENABLED;		/* Check file system */
     if (!(fs->flag & FA_OPENED))		/* Check if opened */
