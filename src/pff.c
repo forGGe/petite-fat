@@ -902,8 +902,6 @@ FRESULT pf_read (
 }
 #endif
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Write File                                                            */
 /*-----------------------------------------------------------------------*/
@@ -921,8 +919,6 @@ FRESULT pf_write (
     const BYTE *p = buff;
     BYTE cs;
     UINT wcnt;
-    FATFS *fs = FatFs;
-
 
     *bw = 0;
     if (!fs) return FR_NOT_ENABLED;		/* Check file system */
@@ -930,7 +926,7 @@ FRESULT pf_write (
         return FR_NOT_OPENED;
 
     if (!btw) {		/* Finalize request */
-        if ((fs->flag & FA__WIP) && disk_writep(0, 0)) ABORT(FR_DISK_ERR);
+        if ((fs->flag & FA__WIP) && disk_writep(&fs->disk, 0, 0)) ABORT(FR_DISK_ERR);
         fs->flag &= ~FA__WIP;
         return FR_OK;
     } else {		/* Write data request */
@@ -947,23 +943,23 @@ FRESULT pf_write (
                 if (fs->fptr == 0)					/* On the top of the file? */
                     clst = fs->org_clust;
                 else
-                    clst = get_fat(fs->curr_clust);
+                    clst = get_fat(fs, fs->curr_clust);
                 if (clst <= 1) ABORT(FR_DISK_ERR);
                 fs->curr_clust = clst;				/* Update current cluster */
             }
-            sect = clust2sect(fs->curr_clust);		/* Get current sector */
+            sect = clust2sect(fs, fs->curr_clust);		/* Get current sector */
             if (!sect) ABORT(FR_DISK_ERR);
             fs->dsect = sect + cs;
-            if (disk_writep(0, fs->dsect)) ABORT(FR_DISK_ERR);	/* Initiate a sector write operation */
+            if (disk_writep(&fs->disk, 0, fs->dsect)) ABORT(FR_DISK_ERR);	/* Initiate a sector write operation */
             fs->flag |= FA__WIP;
         }
         wcnt = 512 - (UINT)fs->fptr % 512;			/* Number of bytes to write to the sector */
         if (wcnt > btw) wcnt = btw;
-        if (disk_writep(p, wcnt)) ABORT(FR_DISK_ERR);	/* Send data to the sector */
+        if (disk_writep(&fs->disk, p, wcnt)) ABORT(FR_DISK_ERR);	/* Send data to the sector */
         fs->fptr += wcnt; p += wcnt;				/* Update pointers and counters */
         btw -= wcnt; *bw += wcnt;
         if ((UINT)fs->fptr % 512 == 0) {
-            if (disk_writep(0, 0)) ABORT(FR_DISK_ERR);	/* Finalize the currtent secter write operation */
+            if (disk_writep(&fs->disk, 0, 0)) ABORT(FR_DISK_ERR);	/* Finalize the currtent secter write operation */
             fs->flag &= ~FA__WIP;
         }
     }
@@ -1008,14 +1004,14 @@ FRESULT pf_lseek (
             fs->curr_clust = clst;
         }
         while (ofs > bcs) {				/* Cluster following loop */
-            clst = get_fat(clst);		/* Follow cluster chain */
+            clst = get_fat(fs, clst);		/* Follow cluster chain */
             if (clst <= 1 || clst >= fs->n_fatent) ABORT(FR_DISK_ERR);
             fs->curr_clust = clst;
             fs->fptr += bcs;
             ofs -= bcs;
         }
         fs->fptr += ofs;
-        sect = clust2sect(clst);		/* Current sector */
+        sect = clust2sect(fs, clst);		/* Current sector */
         if (!sect) ABORT(FR_DISK_ERR);
         fs->dsect = sect + (fs->fptr / 512 & (fs->csize - 1));
     }
